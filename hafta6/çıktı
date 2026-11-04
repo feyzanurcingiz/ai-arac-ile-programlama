@@ -1,0 +1,241 @@
+==== TEST: Sabit Parola (Hardcoded Password) Testi ====
+Analiz ediliyor, lütfen bekle...
+
+1. Tespit Edilen Güvenlik Açığı: Hassas Verilerin Kod İçerisinde Açık Metin Olarak Saklanması (Hardcoded Credentials) ve Çevresel Değişken Eksikliği.
+
+2. Neden Oluştuğu: E-posta sunucusuna kimlik doğrulaması yapmak için kullanılan kullanıcı adı ve parola bilgileri (özellikle hassas yetkilere sahip olabilecek "admin@sirket.com" hesabına ait şifre), kaynak kodun içerisine doğrudan (hardcoded) yazılmıştır. Kodun yetkisiz kişilerin eline geçmesi, sürüm kontrol sistemlerine (GitHub vb.) yanlışlıkla yüklenmesi durumunda bu bilgiler doğrudan ifşa olur.
+
+3. Olası Etkileri: 
+- Kod deposuna erişimi olan herkes e-posta sunucusu kimlik bilgilerini ele geçirebilir.
+- Saldırganlar bu bilgileri kullanarak şirket adına yetkisiz e-postalar gönderebilir, oltalama (phishing) saldırıları düzenleyebilir veya e-posta sunucusunu ele geçirebilir.
+- Şirket içi gizli verilerin sızdırılmasına ve itibar kaybına yol açabilir.
+
+4. Güvenli ve Optimize Edilmiş Kod:
+
+```python
+import os
+import smtplib
+from email.message import EmailMessage
+
+
+def eposta_gonder():
+    # Hassas bilgileri çevresel değişkenlerden (environment variables) güvenli bir şekilde alıyoruz
+    smtp_sunucu = os.environ.get("SMTP_SUNUCU", "smtp.mail.com")
+    smtp_port = int(os.environ.get("SMTP_PORT", 587))
+    gonderen_email = os.environ.get("SMTP_KULLANICI")
+    gonderen_parola = os.environ.get("SMTP_PAROLA")
+    alici_email = "hedef@mail.com"
+
+    # Kimlik bilgisi kontrolü
+    if not gonderen_email or not gonderen_parola:
+        raise ValueError(
+            "SMTP kullanıcı adı veya parolası çevresel değişkenlerde tanımlanmamış!"
+        )
+
+    # E-posta içeriğini standart EmailMessage sınıfı ile oluşturuyoruz (Header Injection ve yapılandırma hatalarını önlemek için)
+    mesaj = EmailMessage()
+    mesaj.set_content("Gizli Rapor İçeriği")
+    mesaj["Subject"] = "Gizli Rapor"
+    mesaj["From"] = gonderen_email
+    mesaj["To"] = alici_email
+
+    try:
+        # Bağlantı yönetimi için 'with' bloğu kullanarak kaynak sızıntılarını önlüyoruz
+        with smtplib.SMTP(smtp_sunucu, smtp_port) as sunucu:
+            sunucu.starttls()
+            sunucu.login(gonderen_email, gonderen_parola)
+            sunucu.send_message(mesaj)
+        print("E-posta başarıyla gönderildi.")
+    except smtplib.SMTPException as e:
+        print(f"E-posta gönderilirken bir hata oluştu: {e}")
+
+
+if __name__ == "__main__":
+    eposta_gonder()
+```
+------------------------------------------------------------
+
+==== TEST: Komut Enjeksiyonu (Command Injection) Testi ====
+Analiz ediliyor, lütfen bekle...
+
+1. Tespit Edilen Güvenlik Açığı: Komut Enjeksiyonu (Command Injection)
+
+2. Neden Oluştuğu: `os.system` fonksiyonu, aldığı string ifadeyi doğrudan işletim sisteminin kabuğuna (shell) ileterek çalıştırır. Kodda, kullanıcıdan hiçbir doğrulama (validation) veya temizleme (sanitization) yapılmadan alınan `ip_adresi` değişkeni, komut dizesiyle doğrudan birleştirilmiştir. Eğer kullanıcı IP adresi yerine zararlı kabuk komutları (örneğin; `8.8.8.8; cat /etc/passwd` veya `8.8.8.8 && rm -rf /`) girerse, bu komutlar sistem yetkileri dahilinde çalıştırılacaktır.
+
+3. Olası Etkileri: 
+- Sunucu üzerinde yetkisiz uzaktan komut çalıştırma (RCE - Remote Code Execution).
+- Hassas sistem dosyalarının ele geçirilmesi veya değiştirilmesi.
+- Veri kaybı veya sistemin tamamen kullanılamaz hale getirilmesi (Denial of Service).
+- Saldırganın sunucu içinde yatay veya dikey yetki yükseltmesi yapması.
+
+4. Güvenli ve Optimize Edilmiş Kod:
+Bu tür açıkları önlemek için kabuk (shell) kullanımından kaçınılmalı ve komutlar argüman listesi olarak çalıştırılmalıdır. `subprocess` modülü, `os.system` yerine tercih edilmelidir. Ayrıca, girdinin geçerli bir IP adresi olup olmadığı regex veya ipaddress kütüphanesi ile doğrulanmalıdır.
+
+```python
+import subprocess
+import ipaddress
+
+def ping_at(ip_adresi):
+    try:
+        # Girdinin geçerli bir IPv4 veya IPv6 adresi olup olmadığını doğrula
+        validated_ip = str(ipaddress.ip_address(ip_adresi))
+        
+        # subprocess.run kullanarak komutu kabuk çalıştırmadan güvenli bir şekilde çağır
+        # shell=False (varsayılan) komut enjeksiyonunu engeller
+        result = subprocess.run(
+            ["ping", "-c", "1", validated_ip],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        return result.stdout
+    except ValueError:
+        return "Geçersiz IP adresi formatı."
+```
+------------------------------------------------------------
+
+============================ TÜM GÜVENLİK TESTLERİ TAMAMLANDI ============================
+PS C:\Users\Marmara\Documents\SQL Server Management Studio 22> C:\Users\Marmara\AppData\Local\Microsoft\WindowsApps\python3.13.exe "c:/Users/Marmara/Documents/SQL Server Management Studio 22/security_analyzer.py"
+============================================================
+       GEMINI KOD GÜVENLİK ANALİZÖRÜ ÇALIŞIYOR
+============================================================
+
+==== TEST: SQL Injection Testi ====
+Analiz ediliyor, lütfen bekle...
+
+1. Tespit Edilen Güvenlik Açığı: SQL Enjeksiyonu (SQL Injection - CWE-89)
+
+2. Neden Oluştuğu: Kullanıcıdan gelen girdiler (`kullanici_adi` ve `parola`), doğrudan Python'un string formatlama yöntemi (`f-string`) kullanılarak SQL sorgusunun içine yazılmıştır. Bu durum, kötü niyetli bir kullanıcının girdiler içine SQL komutları enjekte etmesine olanak tanır.
+
+3. Olası Etkileri: 
+- Kimlik doğrulama mekanizması tamamen bypass edilebilir (örneğin parola bilmeden sisteme giriş yapma).
+- Veritabanındaki tüm kullanıcı verileri çalınabilir.
+- Hassas veriler silinebilir, güncellenebilir veya veritabanı tamamen imha edilebilir.
+- Yetki yükseltme (Privilege Escalation) saldırılarına kapı aralanabilir.
+
+4. Güvenli ve Optimize Edilmiş Kod:
+
+```python
+import sqlite3
+
+def kullanici_girisi(kullanici_adi, parola):
+    # Veritabanı bağlantısı 'with' bloğu ile güvenli bir şekilde yönetilir 
+    # ve işlem sonunda otomatik olarak kapatılır.
+    with sqlite3.connect('veritabani.db') as conn:
+        cursor = conn.cursor()
+        
+        # Parametrik sorgu (Parameterized Query) kullanılarak SQL Enjeksiyonu engellenmiştir.
+        sorgu = "SELECT * FROM users WHERE username = ? AND password = ?"
+        
+        # Girdiler tuple (demet) içinde ayrı olarak verilir.
+        cursor.execute(sorgu, (kullanici_adi, parola))
+        
+        return cursor.fetchone()
+```
+------------------------------------------------------------
+
+==== TEST: Sabit Parola (Hardcoded Password) Testi ====
+Analiz ediliyor, lütfen bekle...
+
+1. Tespit Edilen Güvenlik Açığı: Hassas Verilerin Kod İçerisinde Açık Metin Olarak Saklanması (Hardcoded Credentials) ve Çevresel Değişken (Environment Variable) Eksikliği.
+
+2. Neden Oluştuğu: E-posta sunucusuna kimlik doğrulaması yapmak için kullanılan kullanıcı adı ve parola bilgileri, herhangi bir şifreleme veya dış kaynak kullanılmaksızın doğrudan kaynak kodun (hardcoded) içine yazılmıştır. Kodun versiyon kontrol sistemlerine (GitHub, GitLab vb.) yüklenmesi durumunda bu bilgiler herkes tarafından görülebilir hale gelir.
+
+3. Olası Etkileri: 
+- Yetkisiz Erişim: Kaynak koda erişebilen kötü niyetli kişiler veya çalışanlar, şirket e-posta hesabının parolasını ele geçirebilir.
+- Hesap Ele Geçirme (Account Takeover): Saldırganlar bu hesap üzerinden Phishing (olta) saldırıları yapabilir, gizli raporları çalabilir veya şirket adına istenmeyen e-postalar gönderebilir.
+- Veri Sızıntısı: Kurumsal itibar kaybı ve yasal/düzenleyici uyumluluk cezaları (KVKK, GDPR vb.) ortaya çıkabilir.
+
+4. Güvenli ve Optimize Edilmiş Kod:
+
+```python
+import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+def eposta_gonder():
+    # Hassas bilgileri güvenli bir şekilde çevresel değişkenlerden (environment variables) alıyoruz
+    smtp_sunucu = os.getenv("SMTP_SERVER", "smtp.mail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", 587))
+    gonderen_email = os.getenv("SMTP_EMAIL")
+    gonderen_sifre = os.getenv("SMTP_PASSWORD")
+    
+    # Değişkenlerin tanımlı olup olmadığını kontrol ediyoruz
+    if not gonderen_email or not gonderen_sifre:
+        raise ValueError("SMTP_EMAIL ve SMTP_PASSWORD çevresel değişkenleri tanımlanmamış!")
+
+    hedef_email = "hedef@mail.com"
+    
+    # E-posta yapısını standartlara uygun ve güvenli (MIME formatında) oluşturuyoruz
+    mesaj = MIMEMultipart()
+    mesaj["From"] = gonderen_email
+    mesaj["To"] = hedef_email
+    mesaj["Subject"] = "Gizli Rapor"
+    
+    govde = "Bu bir gizli rapordur."
+    mesaj.attach(MIMEText(govde, "plain", "utf-8"))
+
+    try:
+        # Bağlantı ve gönderim işlemlerini güvenli bir blok içinde yönetiyoruz
+        with smtplib.SMTP(smtp_sunucu, smtp_port) as sunucu:
+            sunucu.starttls()
+            sunucu.login(gonderen_email, gonderen_sifre)
+            sunucu.sendmail(gonderen_email, hedef_email, mesaj.as_string())
+        print("E-posta başarıyla gönderildi.")
+    except smtplib.SMTPException as e:
+        print(f"E-posta gönderilirken bir hata oluştu: {e}")
+
+if __name__ == "__main__":
+    eposta_gonder()
+```
+------------------------------------------------------------
+
+==== TEST: Komut Enjeksiyonu (Command Injection) Testi ====
+Analiz ediliyor, lütfen bekle...
+
+1. Tespit Edilen Güvenlik Açığı: Komut Enjeksiyonu (Command Injection)
+
+2. Neden Oluştuğu: `os.system` fonksiyonu, aldığı string ifadeyi doğrudan işletim sistemi kabuğuna (shell) ileterek çalıştırır. Kod içerisinde `ip_adresi` parametresi herhangi bir doğrulama (validation) veya filtreleme (sanitization) yapılmadan doğrudan komut satırına eklenmiştir. Eğer kullanıcı girdi olarak kötü niyetli bir değer (örneğin: `8.8.8.8; cat /etc/passwd`) verirse, kabuk bu komutları sırayla çalıştırır.
+
+3. Olası Etkileri: 
+- Uzaktan Kod Çalıştırma (RCE - Remote Code Execution)
+- Sunucu üzerinde yetkisiz komutlar çalıştırılması
+- Hassas dosyaların ele geçirilmesi
+- Sistem bütünlüğünün ve gizliliğinin tamamen tehlikeye girmesi
+
+4. Güvenli ve Optimize Edilmiş Kod:
+```python
+import subprocess
+import ipaddress
+
+def ping_at(ip_adresi):
+    try:
+        # Girilen değerin geçerli bir IP adresi olup olmadığını doğrula
+        validated_ip = str(ipaddress.ip_address(ip_adresi))
+    except ValueError:
+        raise ValueError("Geçersiz IP adresi formatı!")
+
+    try:
+        # os.system yerine subprocess kullanarak komutun kabuk (shell) olmadan çalıştırılması
+        # ve argümanların liste olarak verilmesi komut enjeksiyonunu engeller.
+        # timeout parametresi ile olası askıda kalma (DoS) durumlarının önüne geçilmiştir.
+        result = subprocess.run(
+            ["ping", "-c", "1", validated_ip],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5
+        )
+        return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        print("İşlem zaman aşımına uğradı.")
+        return False
+    except Exception as e:
+        print(f"Bir hata oluştu: {e}")
+        return False
+```
+------------------------------------------------------------
+
+============================ TÜM GÜVENLİK TESTLERİ TAMAMLANDI ============================
+PS C:\Users\Marmara\Documents\SQL Server Management Studio 22> 
